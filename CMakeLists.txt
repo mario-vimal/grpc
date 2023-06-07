@@ -2182,6 +2182,7 @@ add_library(grpc
   src/core/lib/iomgr/timer_manager.cc
   src/core/lib/iomgr/unix_sockets_posix.cc
   src/core/lib/iomgr/unix_sockets_posix_noop.cc
+  src/core/lib/iomgr/vsock.cc
   src/core/lib/iomgr/wakeup_fd_eventfd.cc
   src/core/lib/iomgr/wakeup_fd_nospecial.cc
   src/core/lib/iomgr/wakeup_fd_pipe.cc
@@ -2885,6 +2886,7 @@ add_library(grpc_unsecure
   src/core/lib/iomgr/timer_manager.cc
   src/core/lib/iomgr/unix_sockets_posix.cc
   src/core/lib/iomgr/unix_sockets_posix_noop.cc
+  src/core/lib/iomgr/vsock.cc
   src/core/lib/iomgr/wakeup_fd_eventfd.cc
   src/core/lib/iomgr/wakeup_fd_nospecial.cc
   src/core/lib/iomgr/wakeup_fd_pipe.cc
@@ -4416,6 +4418,7 @@ add_library(grpc_authorization_provider
   src/core/lib/iomgr/timer_manager.cc
   src/core/lib/iomgr/unix_sockets_posix.cc
   src/core/lib/iomgr/unix_sockets_posix_noop.cc
+  src/core/lib/iomgr/vsock.cc
   src/core/lib/iomgr/wakeup_fd_eventfd.cc
   src/core/lib/iomgr/wakeup_fd_nospecial.cc
   src/core/lib/iomgr/wakeup_fd_pipe.cc
@@ -11651,6 +11654,7 @@ add_executable(frame_test
   src/core/lib/iomgr/timer_manager.cc
   src/core/lib/iomgr/unix_sockets_posix.cc
   src/core/lib/iomgr/unix_sockets_posix_noop.cc
+  src/core/lib/iomgr/vsock.cc
   src/core/lib/iomgr/wakeup_fd_eventfd.cc
   src/core/lib/iomgr/wakeup_fd_nospecial.cc
   src/core/lib/iomgr/wakeup_fd_pipe.cc
