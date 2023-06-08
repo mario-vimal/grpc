@@ -124,6 +124,14 @@ std::shared_ptr<CallCredentials> ExternalAccountCredentials(
       json_string.c_str(), absl::StrJoin(scopes, ",").c_str()));
 }
 
+std::shared_ptr<CallCredentials> DownscopedCredentials(
+    grpc_call_credentials* creds,
+    const grpc::string& credential_access_boundary_json) {
+  grpc::internal::GrpcLibrary init;
+  return WrapCallCredentials(grpc_downscoped_credentials_create(
+      creds, credential_access_boundary_json.c_str()));
+}
+
 // Builds SSL Credentials given SSL specific options
 std::shared_ptr<ChannelCredentials> SslCredentials(
     const SslCredentialsOptions& options) {
