@@ -327,6 +327,9 @@ grpc_service_account_jwt_access_credentials_create(const char* json_key,
 GRPCAPI grpc_call_credentials* grpc_external_account_credentials_create(
     const char* json_string, const char* scopes_string);
 
+GRPCAPI grpc_call_credentials* grpc_downscoped_credentials_create(
+    grpc_call_credentials* creds, const char* cab_json_string);
+
 /** Creates an Oauth2 Refresh Token credentials object for connecting to Google.
    May return NULL if the input is invalid.
    WARNING: Do NOT use this credentials to connect to a non-google service as

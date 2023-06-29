@@ -23,6 +23,7 @@
 #include <memory>
 #include <vector>
 
+#include <grpc/grpc_security.h>
 #include <grpc/grpc_security_constants.h>
 #include <grpcpp/channel.h>
 #include <grpcpp/impl/grpc_library.h>
@@ -183,6 +184,9 @@ std::shared_ptr<ChannelCredentials> SslCredentials(
 /// service being able to impersonate your client for requests to Google
 /// services.
 std::shared_ptr<CallCredentials> GoogleComputeEngineCredentials();
+
+std::shared_ptr<ChannelCredentials> DownscopedCredentials(
+    grpc_call_credentials* creds, const grpc::string& cab_json_string);
 
 constexpr long kMaxAuthTokenLifetimeSecs = 3600;
 

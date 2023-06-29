@@ -53,6 +53,7 @@
 #include "src/core/lib/security/credentials/external/aws_external_account_credentials.h"
 #include "src/core/lib/security/credentials/external/file_external_account_credentials.h"
 #include "src/core/lib/security/credentials/external/url_external_account_credentials.h"
+#include "src/core/lib/security/credentials/insecure/insecure_credentials.h"
 #include "src/core/lib/security/util/json_util.h"
 #include "src/core/lib/slice/b64.h"
 #include "src/core/lib/uri/uri_parser.h"
@@ -197,20 +198,25 @@ RefCountedPtr<ExternalAccountCredentials> ExternalAccountCredentials::Create(
       return nullptr;
     }
   }
+  std::cout << "All validations done!\n";
   RefCountedPtr<ExternalAccountCredentials> creds;
   if (options.credential_source.object().find("environment_id") !=
       options.credential_source.object().end()) {
+    std::cout << "In AWS\n";
     creds = MakeRefCounted<AwsExternalAccountCredentials>(
         std::move(options), std::move(scopes), error);
   } else if (options.credential_source.object().find("file") !=
              options.credential_source.object().end()) {
+    std::cout << "In file\n";
     creds = MakeRefCounted<FileExternalAccountCredentials>(
         std::move(options), std::move(scopes), error);
   } else if (options.credential_source.object().find("url") !=
              options.credential_source.object().end()) {
+    std::cout << "In url\n";
     creds = MakeRefCounted<UrlExternalAccountCredentials>(
         std::move(options), std::move(scopes), error);
   } else {
+    std::cout << "No matching cred source\n";
     *error = GRPC_ERROR_CREATE(
         "Invalid options credential source to create "
         "ExternalAccountCredentials.");
@@ -225,6 +231,7 @@ RefCountedPtr<ExternalAccountCredentials> ExternalAccountCredentials::Create(
 ExternalAccountCredentials::ExternalAccountCredentials(
     Options options, std::vector<std::string> scopes)
     : options_(std::move(options)) {
+  std::cout << "In External Acc Constructor\n";
   if (scopes.empty()) {
     scopes.push_back(GOOGLE_CLOUD_PLATFORM_DEFAULT_SCOPE);
   }
@@ -255,6 +262,7 @@ void ExternalAccountCredentials::fetch_oauth2(
     grpc_credentials_metadata_request* metadata_req,
     grpc_polling_entity* pollent, grpc_iomgr_cb_func response_cb,
     Timestamp deadline) {
+  std::cout << "In fetch_oauth2 of external acc creds\n";
   GPR_ASSERT(ctx_ == nullptr);
   ctx_ = new HTTPRequestContext(pollent, deadline);
   metadata_req_ = metadata_req;
@@ -267,6 +275,7 @@ void ExternalAccountCredentials::fetch_oauth2(
 
 void ExternalAccountCredentials::OnRetrieveSubjectTokenInternal(
     absl::string_view subject_token, grpc_error_handle error) {
+  std::cout << "In OnRetrieveSubjectTokenInternal!\n";
   if (!error.ok()) {
     FinishTokenFetch(error);
   } else {
@@ -276,6 +285,7 @@ void ExternalAccountCredentials::OnRetrieveSubjectTokenInternal(
 
 void ExternalAccountCredentials::ExchangeToken(
     absl::string_view subject_token) {
+  std::cout << "In ExchangeToken!\n";
   absl::StatusOr<URI> uri = URI::Parse(options_.token_url);
   if (!uri.ok()) {
     FinishTokenFetch(GRPC_ERROR_CREATE(
@@ -490,6 +500,7 @@ void ExternalAccountCredentials::OnImpersenateServiceAccountInternal(
     return;
   }
   std::string access_token = it->second.string();
+  std::cout << "access_token from ext acc:\n" << access_token << "\n";
   it = json->object().find("expireTime");
   if (it == json->object().end() || it->second.type() != Json::Type::kString) {
     FinishTokenFetch(GRPC_ERROR_CREATE(absl::StrFormat(
@@ -547,6 +558,7 @@ grpc_call_credentials* grpc_external_account_credentials_create(
             json.status().ToString().c_str());
     return nullptr;
   }
+  std::cout << "Json parse ok!\n";
   std::vector<std::string> scopes = absl::StrSplit(scopes_string, ',');
   grpc_error_handle error;
   auto creds = grpc_core::ExternalAccountCredentials::Create(

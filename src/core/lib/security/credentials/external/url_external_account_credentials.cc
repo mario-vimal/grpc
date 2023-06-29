@@ -134,6 +134,7 @@ UrlExternalAccountCredentials::UrlExternalAccountCredentials(
 void UrlExternalAccountCredentials::RetrieveSubjectToken(
     HTTPRequestContext* ctx, const Options& /*options*/,
     std::function<void(std::string, grpc_error_handle)> cb) {
+  std::cout<<"In Retrieve Subject Token\n";
   if (ctx == nullptr) {
     FinishRetrieveSubjectToken(
         "",
@@ -183,6 +184,7 @@ void UrlExternalAccountCredentials::RetrieveSubjectToken(
                        &ctx_->response, std::move(http_request_creds));
   http_request_->Start();
   grpc_http_request_destroy(&request);
+  std::cout<<"Exiting Retrieve Subject Token\n";
 }
 
 void UrlExternalAccountCredentials::OnRetrieveSubjectToken(

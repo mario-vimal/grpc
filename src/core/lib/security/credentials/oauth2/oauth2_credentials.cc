@@ -245,6 +245,7 @@ static void on_oauth2_token_fetcher_http_response(void* user_data,
 
 void grpc_oauth2_token_fetcher_credentials::on_http_response(
     grpc_credentials_metadata_request* r, grpc_error_handle error) {
+  std::cout << "In OAuth2 on Http response!\n";
   absl::optional<grpc_core::Slice> access_token_value;
   grpc_core::Duration token_lifetime;
   grpc_credentials_status status =
@@ -284,12 +285,14 @@ void grpc_oauth2_token_fetcher_credentials::on_http_response(
     prev->Unref();
   }
   delete r;
+  std::cout << "Exiting on_http_response\n";
 }
 
 grpc_core::ArenaPromise<absl::StatusOr<grpc_core::ClientMetadataHandle>>
 grpc_oauth2_token_fetcher_credentials::GetRequestMetadata(
     grpc_core::ClientMetadataHandle initial_metadata,
     const grpc_call_credentials::GetRequestMetadataArgs*) {
+  std::cout << "In get request metadata\n";
   // Check if we can use the cached token.
   absl::optional<grpc_core::Slice> cached_access_token_value;
   gpr_mu_lock(&mu_);
@@ -305,6 +308,7 @@ grpc_oauth2_token_fetcher_credentials::GetRequestMetadata(
     initial_metadata->Append(
         GRPC_AUTHORIZATION_METADATA_KEY, std::move(*cached_access_token_value),
         [](absl::string_view, const grpc_core::Slice&) { abort(); });
+    std::cout << "Returning Cached value\n";
     return grpc_core::Immediate(std::move(initial_metadata));
   }
   // Couldn't get the token from the cache.

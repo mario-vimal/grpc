@@ -323,6 +323,13 @@ std::shared_ptr<CallCredentials> GoogleComputeEngineCredentials() {
       grpc_google_compute_engine_credentials_create(nullptr));
 }
 
+std::shared_ptr<ChannelCredentials> DownscopedCredentials(
+    grpc_call_credentials* creds, const grpc::string& cab_json_string) {
+  grpc::internal::GrpcLibrary init;
+  return internal::WrapChannelCredentials(grpc_google_default_credentials_create(
+      grpc_downscoped_credentials_create(creds, cab_json_string.c_str())));
+}
+
 // Builds JWT credentials.
 std::shared_ptr<CallCredentials> ServiceAccountJWTAccessCredentials(
     const std::string& json_key, long token_lifetime_seconds) {

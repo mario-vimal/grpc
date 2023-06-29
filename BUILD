@@ -653,6 +653,7 @@ grpc_cc_library(
         "//src/core:experiments",
         "//src/core:forkable",
         "//src/core:grpc_authorization_base",
+        "//src/core:grpc_downscoped_credentials",
         "//src/core:grpc_external_account_credentials",
         "//src/core:grpc_fake_credentials",
         "//src/core:grpc_google_default_credentials",

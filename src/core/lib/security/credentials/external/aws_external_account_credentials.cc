@@ -95,6 +95,7 @@ AwsExternalAccountCredentials::Create(Options options,
 AwsExternalAccountCredentials::AwsExternalAccountCredentials(
     Options options, std::vector<std::string> scopes, grpc_error_handle* error)
     : ExternalAccountCredentials(options, std::move(scopes)) {
+  std::cout<<"In AWS External acc constructor\n";
   audience_ = options.audience;
   auto it = options.credential_source.object().find("environment_id");
   if (it == options.credential_source.object().end()) {

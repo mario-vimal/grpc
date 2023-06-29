@@ -3214,6 +3214,50 @@ grpc_cc_library(
 )
 
 grpc_cc_library(
+    name = "grpc_downscoped_credentials",
+    srcs = [
+        "lib/security/credentials/downscoped/downscoped_credentials.cc",
+    ],
+    hdrs = [
+        "lib/security/credentials/downscoped/downscoped_credentials.h",
+    ],
+    language = "c++",
+    deps = [
+        "activity",
+        "arena_promise",
+        "closure",
+        "context",
+        "error",
+        "grpc_oauth2_credentials",
+        "httpcli_ssl_credentials",
+        "json",
+        "json_writer",
+        "json_reader",
+        "poll",
+        "pollset_set",
+        "ref_counted",
+        "seq",
+        "slice",
+        "slice_refcount",
+        "status_helper",
+        "time",
+        "unique_type_name",
+        "useful",
+        "//:gpr",
+        "//:grpc_base",
+        "//:grpc_credentials_util",
+        "//:grpc_security_base",
+        "//:grpc_trace",
+        "//:httpcli",
+        "//:orphanable",
+        "//:promise",
+        "//:ref_counted_ptr",
+        "//:uri_parser",
+        "//src/core:exec_ctx_wakeup_scheduler",
+    ],
+)
+
+grpc_cc_library(
     name = "grpc_oauth2_credentials",
     srcs = [
         "lib/security/credentials/oauth2/oauth2_credentials.cc",
@@ -3290,6 +3334,7 @@ grpc_cc_library(
         "closure",
         "env",
         "error",
+        "grpc_insecure_credentials",
         "grpc_oauth2_credentials",
         "httpcli_ssl_credentials",
         "json",
