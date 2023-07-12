@@ -47,10 +47,17 @@ class PluggableAuthExternalAccountCredentials final
       HTTPRequestContext* ctx, const Options& options,
       std::function<void(std::string, grpc_error_handle)> cb) override;
 
+  void OnRetrieveSubjectToken(std::string executable_output);
+  void FinishRetrieveSubjectToken(std::string token, grpc_error_handle error);
   // Fields of credential_source.executable
   std::string command_;
   int64_t executable_timeout_ms_;
   std::string output_file_path_ = "";
+
+  // Fields for setting env variables
+  std::string audience_;
+  std::string subject_token_type_;
+  std::string impersonation_url_;
 
   std::function<void(std::string, grpc_error_handle)> cb_ = nullptr;
 };
