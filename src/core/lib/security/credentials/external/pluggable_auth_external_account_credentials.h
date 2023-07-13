@@ -1,6 +1,5 @@
-
 //
-// Copyright 2020 gRPC authors.
+// Copyright 2023 gRPC authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,17 +19,14 @@
 
 #include <grpc/support/port_platform.h>
 
+#include <stdint.h>
+
 #include <functional>
-#include <memory>
 #include <string>
 #include <vector>
 
-#include "src/core/lib/gprpp/orphanable.h"
 #include "src/core/lib/gprpp/ref_counted_ptr.h"
-#include "src/core/lib/http/httpcli.h"
-#include "src/core/lib/http/parser.h"
 #include "src/core/lib/iomgr/error.h"
-#include "src/core/lib/security/credentials/external/aws_request_signer.h"
 #include "src/core/lib/security/credentials/external/external_account_credentials.h"
 
 namespace grpc_core {

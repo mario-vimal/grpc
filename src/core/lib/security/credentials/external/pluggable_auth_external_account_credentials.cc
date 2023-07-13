@@ -1,6 +1,5 @@
-
 //
-// Copyright 2020 gRPC authors.
+// Copyright 2023 gRPC authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,35 +17,16 @@
 
 #include "src/core/lib/security/credentials/external/pluggable_auth_external_account_credentials.h"
 
-#include <string.h>
-
 #include <initializer_list>
 #include <map>
 #include <utility>
 
-#include "absl/status/status.h"
-#include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_replace.h"
-#include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 
-#include <grpc/grpc.h>
-#include <grpc/grpc_security.h>
-#include <grpc/support/alloc.h>
 #include <grpc/support/json.h>
-#include <grpc/support/log.h>
-#include <grpc/support/string_util.h>
 
-#include "src/core/lib/gprpp/env.h"
-#include "src/core/lib/http/httpcli_ssl_credentials.h"
-#include "src/core/lib/iomgr/closure.h"
 #include "src/core/lib/json/json.h"
-#include "src/core/lib/json/json_reader.h"
-#include "src/core/lib/json/json_writer.h"
-#include "src/core/lib/security/credentials/credentials.h"
-#include "src/core/lib/uri/uri_parser.h"
 
 #define DEFAULT_EXECUTABLE_TIMEOUT_MS 30000  // 30 seconds
 #define MIN_EXECUTABLE_TIMEOUT_MS 5000       // 5 seconds
@@ -92,7 +72,7 @@ PluggableAuthExternalAccountCredentials::
   if (executable_it != executable_json.object().end()) {
     if (!absl::SimpleAtoi(executable_it->second.string(),
                           &executable_timeout_ms_)) {
-      *error = GRPC_ERROR_CREATE("timeout_millis field must be a number");
+      *error = GRPC_ERROR_CREATE("timeout_millis field must be a number.");
       return;
     }
     if (executable_timeout_ms_ > MAX_EXECUTABLE_TIMEOUT_MS ||
@@ -117,13 +97,6 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
     HTTPRequestContext* ctx, const Options& /*options*/,
     std::function<void(std::string, grpc_error_handle)> cb) {
   cb_ = cb;
-
-  std::cout << "Command: " << command_;
-  std::cout << "\nTimeout millis: " << executable_timeout_ms_;
-  std::cout << "\nOutput file: " << output_file_path_;
-
-  grpc_error_handle error;
-  cb_("", error);
   // TODO: Execute command
 }
 
