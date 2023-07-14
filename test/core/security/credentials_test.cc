@@ -3851,7 +3851,7 @@ TEST(CredentialsTest,
 
 TEST(
     CredentialsTest,
-    TestPluggableAuthExternalAccountCredentialsCreateFailureExecutableTimeoutLessThanMin) {
+    TestPluggableAuthExternalAccountCredentialsCreateFailureExecutableTimeoutLessThan5Seconds) {
   const char* options_string =
       "{\"type\":\"external_account\","
       "\"audience\":\"audience\","
@@ -3880,7 +3880,7 @@ TEST(
 
 TEST(
     CredentialsTest,
-    TestPluggableAuthExternalAccountCredentialsCreateFailureExecutableTimeoutMoreThanMax) {
+    TestPluggableAuthExternalAccountCredentialsCreateFailureExecutableTimeoutMoreThan120Seconds) {
   const char* options_string =
       "{\"type\":\"external_account\","
       "\"audience\":\"audience\","
