@@ -3358,6 +3358,7 @@ grpc_cc_library(
         "lib/security/credentials/external/aws_request_signer.cc",
         "lib/security/credentials/external/external_account_credentials.cc",
         "lib/security/credentials/external/file_external_account_credentials.cc",
+        "lib/security/credentials/external/pluggable_auth_external_account_credentials.cc",
         "lib/security/credentials/external/url_external_account_credentials.cc",
     ],
     hdrs = [
@@ -3365,6 +3366,7 @@ grpc_cc_library(
         "lib/security/credentials/external/aws_request_signer.h",
         "lib/security/credentials/external/external_account_credentials.h",
         "lib/security/credentials/external/file_external_account_credentials.h",
+        "lib/security/credentials/external/pluggable_auth_external_account_credentials.h",
         "lib/security/credentials/external/url_external_account_credentials.h",
     ],
     external_deps = [
