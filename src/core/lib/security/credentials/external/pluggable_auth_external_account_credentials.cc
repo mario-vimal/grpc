@@ -20,15 +20,16 @@
 #include <cxxabi.h>
 
 #include <chrono>
+#include <fstream>
 #include <future>
 #include <initializer_list>
-#include <iostream>
 #include <map>
 #include <memory>
 #include <thread>
 #include <utility>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -40,17 +41,18 @@
 
 #include "src/core/lib/gpr/subprocess.h"
 #include "src/core/lib/json/json.h"
+#include "src/core/lib/json/json_reader.h"
 #include "src/core/lib/security/credentials/external/external_account_credentials.h"
 
 #define DEFAULT_EXECUTABLE_TIMEOUT_MS 30000  // 30 seconds
 #define MIN_EXECUTABLE_TIMEOUT_MS 5000       // 5 seconds
 #define MAX_EXECUTABLE_TIMEOUT_MS 120000     // 120 seconds
 
-std::string read_file_contents(std::string output_file_path) {
+std::string read_file_contents(std::string file_path) {
   std::string content = "", line;
-  std::ifstream output_file(output_file_path);
-  if (output_file.is_open()) {
-    while (getline(output_file, line)) {
+  std::ifstream file_ifstream(file_path);
+  if (file_ifstream.is_open()) {
+    while (getline(file_ifstream, line)) {
       absl::StrAppend(&content, line);
     }
   }
@@ -61,7 +63,7 @@ std::string get_impersonated_email(
     std::string service_account_impersonation_url) {
   std::vector<absl::string_view> url_elements =
       absl::StrSplit(service_account_impersonation_url, "/");
-  absl::string_view impersonated_email;
+  absl::string_view impersonated_email = url_elements[url_elements.size() - 1];
   absl::ConsumeSuffix(&impersonated_email, ":generateAccessToken");
   return {impersonated_email.data(), impersonated_email.size()};
 }
@@ -143,10 +145,9 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
     std::function<void(std::string, grpc_error_handle)> cb) {
   cb_ = cb;
   if (output_file_path_ != "") {
-    std::string output_file_content_string =
-        read_file_contents(output_file_path_);
-    if (output_file_content_string != "") {
-      OnRetrieveSubjectToken(output_file_content_string);
+    std::string output_file_content = read_file_contents(output_file_path_);
+    if (output_file_content != "") {
+      OnRetrieveSubjectToken(output_file_content);
       return;
     }
   }
@@ -199,9 +200,29 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
 }
 
 void PluggableAuthExternalAccountCredentials::OnRetrieveSubjectToken(
-    std::string executable_output) {
-  std::cout << executable_output << "\n";
-  // TODO: Parse Response
+    std::string executable_output_string) {
+  auto executable_output = JsonParse(executable_output_string);
+  if (!executable_output.ok()) {
+    FinishRetrieveSubjectToken(
+        "", GRPC_ERROR_CREATE("Executable output could not be parsed."));
+    return;
+  }
+  auto executable_output_it = executable_output->object().find("success");
+  if (output_file_path_ != "" &&
+      executable_output_it != executable_output->object().end() &&
+      executable_output_it->second.boolean()) {
+    executable_output_it = executable_output->object().find("expiration_time");
+    if (executable_output_it == executable_output->object().end() ||
+        executable_output_it->second.string() == "") {
+      FinishRetrieveSubjectToken(
+          "", GRPC_ERROR_CREATE(
+                  "The executable response must contain the "
+                  "`expiration_time` field for successful responses when an "
+                  "output_file has been specified in the configuration."));
+    }
+  }
+
+  // TODO: Fetch gcp token
 }
 
 void PluggableAuthExternalAccountCredentials::FinishRetrieveSubjectToken(
