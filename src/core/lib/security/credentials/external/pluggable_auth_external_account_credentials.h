@@ -35,9 +35,9 @@ class PluggableAuthExternalAccountCredentials final
     : public ExternalAccountCredentials {
  public:
   struct ExecutableResponse {
-    int64_t version;
     bool success;
-    int64_t expiration_time;
+    int version;
+    int expiration_time;
     std::string token_type;
     std::string subject_token;
     std::string error_code;
@@ -58,19 +58,13 @@ class PluggableAuthExternalAccountCredentials final
       std::function<void(std::string, grpc_error_handle)> cb) override;
 
   void CreateExecutableResponse(std::string executable_output);
-  void OnRetrieveSubjectToken();
   void FinishRetrieveSubjectToken(std::string token, grpc_error_handle error);
   // Fields of credential_source.executable
   std::string command_;
   int64_t executable_timeout_ms_;
   std::string output_file_path_ = "";
 
-  // Fields for setting env variables
-  std::string audience_;
-  std::string subject_token_type_;
-  std::string impersonation_url_;
-
-  ExecutableResponse* executable_response_;
+  ExecutableResponse executable_response_;
 
   std::function<void(std::string, grpc_error_handle)> cb_ = nullptr;
 };
