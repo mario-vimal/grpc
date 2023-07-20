@@ -50,6 +50,8 @@
 // #include "absl/log/absl_log.h"
 #include "absl/strings/substitute.h"
 
+extern char** environ;
+
 // Must be last.
 // #include "upb/port/def.inc"
 
@@ -310,11 +312,14 @@ void Subprocess::Start(const std::string& command,
     argv[i] = portable_strdup(arg_vector[i].c_str());
   }
   argv[arg_vector.size()] = nullptr;
-  char** envp = (char**)malloc(sizeof(char*) * (envp_vector.size() + 1));
-  for (int i = 0; i < envp_vector.size(); i++) {
-    envp[i] = portable_strdup(envp_vector[i].c_str());
-  }
-  envp[envp_vector.size()] = nullptr;
+  int32_t environ_count = 0, i = 0;
+  while (environ[environ_count] != nullptr) environ_count += 1;
+  char** envp =
+      (char**)malloc(sizeof(char*) * (environ_count + envp_vector.size() + 1));
+  for (; i < environ_count; i++) envp[i] = portable_strdup(environ[i]);
+  for (int j = 0; j < envp_vector.size(); i++, j++)
+    envp[i] = portable_strdup(envp_vector[j].c_str());
+  envp[i] = nullptr;
 
   child_pid_ = fork();
   if (child_pid_ == -1) {
