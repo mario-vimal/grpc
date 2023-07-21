@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <algorithm>
 #include <chrono>
 #include <future>
 #include <initializer_list>
@@ -38,6 +39,7 @@
 #include "absl/strings/strip.h"
 
 #include <grpc/slice.h>
+#include <grpc/support/alloc.h>
 #include <grpc/support/json.h>
 #include <grpc/support/time.h>
 
@@ -59,7 +61,7 @@ extern char** environ;
   "GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES"
 #define GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES_ACCEPTED_VALUE "1"
 
-char* portable_strdup(const char* s) {
+char* portable_str_dup(const char* s) {
   char* ns = (char*)malloc(strlen(s) + 1);
   if (ns != nullptr) {
     strcpy(ns, s);
@@ -93,9 +95,8 @@ std::string get_impersonated_email(
   return std::string(impersonated_email);
 }
 
-bool run_executable(Subprocess* subprocess, std::string command,
-                    std::vector<std::string> envp, std::string* output,
-                    std::string* error) {
+bool run_executable(Subprocess* subprocess, std::string command, char** envp,
+                    std::string* output, std::string* error) {
   subprocess->Start(command, envp);
   return subprocess->Communicate("", output, error);
 }
@@ -270,13 +271,13 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
   while (environ[environ_count] != nullptr) environ_count += 1;
   char** envp = (char**)gpr_malloc(sizeof(char*) *
                                    (environ_count + envp_vector.size() + 1));
-  for (; i < environ_count; i++) envp[i] = portable_strdup(environ[i]);
+  for (; i < environ_count; i++) envp[i] = portable_str_dup(environ[i]);
   for (int j = 0; j < envp_vector.size(); i++, j++)
-    envp[i] = portable_strdup(envp_vector[j].c_str());
+    envp[i] = portable_str_dup(envp_vector[j].c_str());
   envp[i] = nullptr;
   Subprocess* subprocess = new Subprocess();
-  std::packaged_task<bool(Subprocess*, std::string, std::vector<std::string>,
-                          std::string*, std::string*)>
+  std::packaged_task<bool(Subprocess*, std::string, char**, std::string*,
+                          std::string*)>
       run_executable_task(run_executable);
   std::future<bool> executable_output_future = run_executable_task.get_future();
   std::string output_string, error_string;
