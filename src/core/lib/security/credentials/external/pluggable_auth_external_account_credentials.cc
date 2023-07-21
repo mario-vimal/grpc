@@ -41,6 +41,7 @@
 #include <grpc/slice.h>
 #include <grpc/support/alloc.h>
 #include <grpc/support/json.h>
+#include <grpc/support/string_util.h>
 #include <grpc/support/time.h>
 
 #include "src/core/lib/gpr/subprocess.h"
@@ -60,14 +61,6 @@ extern char** environ;
 #define GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES \
   "GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES"
 #define GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES_ACCEPTED_VALUE "1"
-
-char* portable_str_dup(const char* s) {
-  char* ns = (char*)malloc(strlen(s) + 1);
-  if (ns != nullptr) {
-    strcpy(ns, s);
-  }
-  return ns;
-}
 
 inline bool isKeyPresent(absl::StatusOr<grpc_core::Json> json,
                          std::string key) {
@@ -153,8 +146,9 @@ void PluggableAuthExternalAccountCredentials::CreateExecutableResponse(
   auto executable_output = JsonParse(executable_output_string);
   if (!executable_output.ok()) {
     FinishRetrieveSubjectToken(
-        "", GRPC_ERROR_CREATE("The output_file specified contains an invalid "
-                              "or malformed response."));
+        "", GRPC_ERROR_CREATE(
+                "The response from the executable contains an invalid "
+                "or malformed response."));
   }
   if (!isKeyPresent(executable_output, "version")) {
     FinishRetrieveSubjectToken(
@@ -240,6 +234,12 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
     ~SliceWrapper() { CSliceUnref(slice); }
     grpc_slice slice = grpc_empty_slice();
   };
+  // Users can specify an output file path in the Pluggable Auth ADC
+  // configuration. This is the file's absolute path. Their executable will
+  // handle writing the 3P credentials to this file.
+  // If specified, we will first check if we have valid unexpired credentials
+  // stored in this location to avoid running the executable until they are
+  // expired.
   if (output_file_path_ != "") {
     SliceWrapper content_slice;
     grpc_error_handle error =
@@ -248,6 +248,8 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
       absl::string_view output_file_content =
           StringViewFromSlice(content_slice.slice);
       CreateExecutableResponse(std::string(output_file_content));
+      // If the cached output file has an executable response that was
+      // successful and un-expired, return the subject token.
       if (executable_response_.success &&
           !isExpired(executable_response_.expiration_time)) {
         FinishRetrieveSubjectToken(executable_response_.subject_token,
@@ -256,6 +258,8 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
       }
     }
   }
+  // If the cached output_file does not contain a valid response, call the
+  // executable.
   std::vector<std::string> envp_vector = {
       absl::StrFormat("GOOGLE_EXTERNAL_ACCOUNT_AUDIENCE=%s", options.audience),
       absl::StrFormat("GOOGLE_EXTERNAL_ACCOUNT_TOKEN_TYPE=%s",
@@ -271,9 +275,9 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
   while (environ[environ_count] != nullptr) environ_count += 1;
   char** envp = (char**)gpr_malloc(sizeof(char*) *
                                    (environ_count + envp_vector.size() + 1));
-  for (; i < environ_count; i++) envp[i] = portable_str_dup(environ[i]);
+  for (; i < environ_count; i++) envp[i] = gpr_strdup(environ[i]);
   for (int j = 0; j < envp_vector.size(); i++, j++)
-    envp[i] = portable_str_dup(envp_vector[j].c_str());
+    envp[i] = gpr_strdup(envp_vector[j].c_str());
   envp[i] = nullptr;
   Subprocess* subprocess = new Subprocess();
   std::packaged_task<bool(Subprocess*, std::string, char**, std::string*,
@@ -287,11 +291,14 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
           executable_timeout_ms_ / 1000)) != std::future_status::timeout) {
     thr.join();
     if (!executable_output_future.get()) {
+      // An error must have occured in the executable.
       FinishRetrieveSubjectToken(
           "", GRPC_ERROR_CREATE(absl::StrFormat(
                   "Executable failed with error: %s", error_string)));
       return;
     }
+    // If the output file is specified, then the executable has stored the
+    // response in the output file path.
     if (output_file_path_ != "") {
       SliceWrapper content_slice;
       grpc_error_handle error =
@@ -302,6 +309,8 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
         CreateExecutableResponse(std::string(output_file_content));
       }
     } else
+      // Get the result of the executable from output stream and create an
+      // ExecutableResponse object from it.
       CreateExecutableResponse(output_string);
     if (!executable_response_.success) {
       FinishRetrieveSubjectToken(
@@ -322,10 +331,10 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
     return;
   } else {
     subprocess->KillChildSubprocess();
-    FinishRetrieveSubjectToken(
-        "", GRPC_ERROR_CREATE(
-                absl::StrFormat("Executable timeout exceeded %d milliseconds.",
-                                executable_timeout_ms_)));
+    FinishRetrieveSubjectToken("", GRPC_ERROR_CREATE(absl::StrFormat(
+                                       "The executable failed to finish within "
+                                       "the timeout of %d milliseconds",
+                                       executable_timeout_ms_)));
     return;
   }
 }
