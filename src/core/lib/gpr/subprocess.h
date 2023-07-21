@@ -51,7 +51,7 @@ class Subprocess {
 
   // Start the subprocess.  Currently we don't provide a way to specify
   // arguments as protoc plugins don't have any.
-  void Start(const std::string& program, std::vector<std::string> envp);
+  void Start(const std::string& program, char** envp);
 
   // Pipe the input message to the subprocess's stdin, then close the pipe.
   // Meanwhile, read from the subprocess's stdout and copy into *output.
@@ -60,6 +60,8 @@ class Subprocess {
   // *error to a description of the problem.
   bool Communicate(const std::string& input_data, std::string* output_data,
                    std::string* error);
+
+  void KillChildSubprocess();
 
 #ifdef _WIN32
   // Given an error code, returns a human-readable error message.  This is

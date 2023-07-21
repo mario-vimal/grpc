@@ -52,9 +52,6 @@
 
 extern char** environ;
 
-// Must be last.
-// #include "upb/port/def.inc"
-
 char* portable_strdup(const char* s) {
   char* ns = (char*)malloc(strlen(s) + 1);
   if (ns != nullptr) {
@@ -292,8 +289,7 @@ Subprocess::~Subprocess() {
   }
 }
 
-void Subprocess::Start(const std::string& command,
-                       std::vector<std::string> envp_vector) {
+void Subprocess::Start(const std::string& command, char** envp) {
   // Note that we assume that there are no other threads, thus we don't have to
   // do crazy stuff like using socket pairs or avoiding libc locks.
 
@@ -312,14 +308,6 @@ void Subprocess::Start(const std::string& command,
     argv[i] = portable_strdup(arg_vector[i].c_str());
   }
   argv[arg_vector.size()] = nullptr;
-  int32_t environ_count = 0, i = 0;
-  while (environ[environ_count] != nullptr) environ_count += 1;
-  char** envp =
-      (char**)malloc(sizeof(char*) * (environ_count + envp_vector.size() + 1));
-  for (; i < environ_count; i++) envp[i] = portable_strdup(environ[i]);
-  for (int j = 0; j < envp_vector.size(); i++, j++)
-    envp[i] = portable_strdup(envp_vector[j].c_str());
-  envp[i] = nullptr;
 
   child_pid_ = fork();
   if (child_pid_ == -1) {
@@ -467,5 +455,7 @@ bool Subprocess::Communicate(const std::string& input_data,
 
   return true;
 }
+
+void Subprocess::KillChildSubprocess() { kill(child_pid_, SIGKILL); }
 
 #endif  // !_WIN32

@@ -49,6 +49,8 @@
 #include "src/core/lib/slice/slice.h"
 #include "src/core/lib/slice/slice_internal.h"
 
+extern char** environ;
+
 #define DEFAULT_EXECUTABLE_TIMEOUT_MS 30000  // 30 seconds
 #define MIN_EXECUTABLE_TIMEOUT_MS 5000       // 5 seconds
 #define MAX_EXECUTABLE_TIMEOUT_MS 120000     // 120 seconds
@@ -56,6 +58,14 @@
 #define GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES \
   "GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES"
 #define GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES_ACCEPTED_VALUE "1"
+
+char* portable_strdup(const char* s) {
+  char* ns = (char*)malloc(strlen(s) + 1);
+  if (ns != nullptr) {
+    strcpy(ns, s);
+  }
+  return ns;
+}
 
 inline bool isKeyPresent(absl::StatusOr<grpc_core::Json> json,
                          std::string key) {
@@ -119,7 +129,7 @@ PluggableAuthExternalAccountCredentials::
   }
   command_ = getStringValue(executable_json, "command");
   executable_timeout_ms_ = DEFAULT_EXECUTABLE_TIMEOUT_MS;
-  if (!isKeyPresent(executable_json, "timeout_millis")) {
+  if (isKeyPresent(executable_json, "timeout_millis")) {
     if (!absl::SimpleAtoi(getStringValue(executable_json, "timeout_millis"),
                           &executable_timeout_ms_)) {
       *error = GRPC_ERROR_CREATE("timeout_millis field must be a number.");
@@ -199,7 +209,7 @@ void PluggableAuthExternalAccountCredentials::CreateExecutableResponse(
                                 "`code` field when unsuccessful."));
     }
     executable_response_.error_code = getStringValue(executable_output, "code");
-    if (isKeyPresent(executable_output, "message")) {
+    if (!isKeyPresent(executable_output, "message")) {
       FinishRetrieveSubjectToken(
           "", GRPC_ERROR_CREATE("The executable response must contain the "
                                 "`message` field when unsuccessful."));
@@ -223,6 +233,7 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
                 "Pluggable Auth executables need to be explicitly allowed to "
                 "run by setting the GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES "
                 "environment variable to 1."));
+    return;
   }
   struct SliceWrapper {
     ~SliceWrapper() { CSliceUnref(slice); }
@@ -244,16 +255,25 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
       }
     }
   }
-  std::vector<std::string> envp = {
+  std::vector<std::string> envp_vector = {
       absl::StrFormat("GOOGLE_EXTERNAL_ACCOUNT_AUDIENCE=%s", options.audience),
       absl::StrFormat("GOOGLE_EXTERNAL_ACCOUNT_TOKEN_TYPE=%s",
                       options.subject_token_type),
       absl::StrFormat("GOOGLE_EXTERNAL_ACCOUNT_INTERACTIVE=%d", 0),
       absl::StrFormat(
           "GOOGLE_EXTERNAL_ACCOUNT_IMPERSONATED_EMAIL=%s",
-          get_impersonated_email(options.service_account_impersonation_url)),
-      absl::StrFormat("GOOGLE_EXTERNAL_ACCOUNT_OUTPUT_FILE=%s",
-                      output_file_path_)};
+          get_impersonated_email(options.service_account_impersonation_url))};
+  if (output_file_path_ != "")
+    envp_vector.push_back(absl::StrFormat(
+        "GOOGLE_EXTERNAL_ACCOUNT_OUTPUT_FILE=%s", output_file_path_));
+  int environ_count = 0, i = 0;
+  while (environ[environ_count] != nullptr) environ_count += 1;
+  char** envp = (char**)gpr_malloc(sizeof(char*) *
+                                   (environ_count + envp_vector.size() + 1));
+  for (; i < environ_count; i++) envp[i] = portable_strdup(environ[i]);
+  for (int j = 0; j < envp_vector.size(); i++, j++)
+    envp[i] = portable_strdup(envp_vector[j].c_str());
+  envp[i] = nullptr;
   Subprocess* subprocess = new Subprocess();
   std::packaged_task<bool(Subprocess*, std::string, std::vector<std::string>,
                           std::string*, std::string*)>
@@ -285,7 +305,10 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
     if (!executable_response_.success) {
       FinishRetrieveSubjectToken(
           "",
-          GRPC_ERROR_CREATE("Executable failed to generate subject token."));
+          GRPC_ERROR_CREATE(absl::StrFormat(
+              "Executable failed with error code: %s and error message: %s.",
+              executable_response_.error_code,
+              executable_response_.error_message)));
       return;
     }
     if (isExpired(executable_response_.expiration_time)) {
@@ -297,8 +320,7 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
                                absl::OkStatus());
     return;
   } else {
-    thr.detach();
-    thr.~thread();
+    subprocess->KillChildSubprocess();
     FinishRetrieveSubjectToken(
         "", GRPC_ERROR_CREATE(
                 absl::StrFormat("Executable timeout exceeded %d milliseconds.",
