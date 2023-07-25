@@ -88,10 +88,14 @@ std::string get_impersonated_email(
   return std::string(impersonated_email);
 }
 
-bool run_executable(Subprocess* subprocess, std::string command, char** envp,
-                    std::string* output, std::string* error) {
-  subprocess->Start(command, envp);
-  return subprocess->Communicate("", output, error);
+bool run_executable(gpr_subprocess* gpr_subprocess_, int argc, char** argv,
+                    int envc, char** envp, std::string* output,
+                    std::string* error) {
+  gpr_subprocess_ =
+      gpr_subprocess_create_with_envp(argc, const_cast<const char**>(argv),
+                                      envc, const_cast<const char**>(envp));
+  std::string input = "";
+  return gpr_subprocess_communicate(gpr_subprocess_, input, output, error);
 }
 
 namespace grpc_core {
@@ -271,22 +275,27 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
   if (output_file_path_ != "")
     envp_vector.push_back(absl::StrFormat(
         "GOOGLE_EXTERNAL_ACCOUNT_OUTPUT_FILE=%s", output_file_path_));
-  int environ_count = 0, i = 0;
+  int environ_count = 0, envc = 0, argc = 0;
   while (environ[environ_count] != nullptr) environ_count += 1;
-  char** envp = (char**)gpr_malloc(sizeof(char*) *
-                                   (environ_count + envp_vector.size() + 1));
-  for (; i < environ_count; i++) envp[i] = gpr_strdup(environ[i]);
-  for (int j = 0; j < envp_vector.size(); i++, j++)
-    envp[i] = gpr_strdup(envp_vector[j].c_str());
-  envp[i] = nullptr;
-  Subprocess* subprocess = new Subprocess();
-  std::packaged_task<bool(Subprocess*, std::string, char**, std::string*,
-                          std::string*)>
+  char** envp =
+      (char**)gpr_malloc(sizeof(char*) * (environ_count + envp_vector.size()));
+  for (; envc < environ_count; envc++) envp[envc] = gpr_strdup(environ[envc]);
+  for (int j = 0; j < envp_vector.size(); envc++, j++)
+    envp[envc] = gpr_strdup(envp_vector[j].c_str());
+  std::vector<std::string> arg_vector = absl::StrSplit(command_, " ");
+  argc = arg_vector.size();
+  char** argv = (char**)malloc(sizeof(char*) * argc);
+  for (int i = 0; i < argc; i++) {
+    argv[i] = gpr_strdup(arg_vector[i].c_str());
+  }
+  gpr_subprocess* gpr_subprocess_;
+  std::packaged_task<bool(gpr_subprocess*, int, char**, int, char**,
+                          std::string*, std::string*)>
       run_executable_task(run_executable);
   std::future<bool> executable_output_future = run_executable_task.get_future();
   std::string output_string, error_string;
-  std::thread thr(std::move(run_executable_task), subprocess, command_, envp,
-                  &output_string, &error_string);
+  std::thread thr(std::move(run_executable_task), gpr_subprocess_, argc, argv,
+                  envc, envp, &output_string, &error_string);
   if (executable_output_future.wait_for(std::chrono::seconds(
           executable_timeout_ms_ / 1000)) != std::future_status::timeout) {
     thr.join();
@@ -330,7 +339,7 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
                                absl::OkStatus());
     return;
   } else {
-    subprocess->KillChildSubprocess();
+    gpr_subprocess_destroy(gpr_subprocess_);
     FinishRetrieveSubjectToken("", GRPC_ERROR_CREATE(absl::StrFormat(
                                        "The executable failed to finish within "
                                        "the timeout of %d milliseconds",
