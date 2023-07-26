@@ -3391,6 +3391,7 @@ grpc_cc_library(
         "status_helper",
         "time",
         "//:gpr",
+        "//:subprocess",
         "//:grpc_base",
         "//:grpc_credentials_util",
         "//:grpc_security_base",
