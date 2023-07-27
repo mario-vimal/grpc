@@ -3399,6 +3399,7 @@ grpc_cc_library(
         "//:httpcli",
         "//:orphanable",
         "//:ref_counted_ptr",
+        "//:subprocess",
         "//:uri_parser",
     ],
 )
