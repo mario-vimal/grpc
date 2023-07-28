@@ -1539,7 +1539,6 @@ add_library(gpr
   src/core/lib/gpr/posix/time.cc
   src/core/lib/gpr/posix/tmpfile.cc
   src/core/lib/gpr/string.cc
-  src/core/lib/gpr/subprocess.cc
   src/core/lib/gpr/sync.cc
   src/core/lib/gpr/sync_abseil.cc
   src/core/lib/gpr/time.cc
@@ -2202,6 +2201,8 @@ add_library(grpc
   src/core/lib/event_engine/work_queue/basic_work_queue.cc
   src/core/lib/experiments/config.cc
   src/core/lib/experiments/experiments.cc
+  src/core/lib/gpr/subprocess_posix.cc
+  src/core/lib/gpr/subprocess_windows.cc
   src/core/lib/gprpp/load_file.cc
   src/core/lib/gprpp/per_cpu.cc
   src/core/lib/gprpp/status_helper.cc
@@ -6587,8 +6588,6 @@ if(gRPC_BUILD_TESTS)
 if(_gRPC_PLATFORM_LINUX OR _gRPC_PLATFORM_MAC OR _gRPC_PLATFORM_POSIX)
 
   add_executable(bad_ssl_alpn_test
-    src/core/lib/gpr/subprocess_posix.cc
-    src/core/lib/gpr/subprocess_windows.cc
     test/core/bad_ssl/bad_ssl_test.cc
     test/core/end2end/cq_verifier.cc
     test/core/util/cmdline.cc
@@ -6639,8 +6638,6 @@ if(gRPC_BUILD_TESTS)
 if(_gRPC_PLATFORM_LINUX OR _gRPC_PLATFORM_MAC OR _gRPC_PLATFORM_POSIX)
 
   add_executable(bad_ssl_cert_test
-    src/core/lib/gpr/subprocess_posix.cc
-    src/core/lib/gpr/subprocess_windows.cc
     test/core/bad_ssl/bad_ssl_test.cc
     test/core/end2end/cq_verifier.cc
     test/core/util/cmdline.cc
