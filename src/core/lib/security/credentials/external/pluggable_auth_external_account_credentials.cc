@@ -145,83 +145,93 @@ PluggableAuthExternalAccountCredentials::
     output_file_path_ = getStringValue(executable_json, "output_file");
 }
 
-void PluggableAuthExternalAccountCredentials::CreateExecutableResponse(
-    std::string executable_output_string) {
+PluggableAuthExternalAccountCredentials::ExecutableResponse*
+PluggableAuthExternalAccountCredentials::CreateExecutableResponse(
+    std::string executable_output_string, grpc_error_handle* error) {
   auto executable_output = JsonParse(executable_output_string);
+  ExecutableResponse* executable_response =
+      (ExecutableResponse*)gpr_malloc(sizeof(ExecutableResponse));
   if (!executable_output.ok()) {
-    FinishRetrieveSubjectToken(
-        "", GRPC_ERROR_CREATE(
-                "The response from the executable contains an invalid "
-                "or malformed response."));
+    *error = GRPC_ERROR_CREATE(
+        "The response from the executable contains an invalid "
+        "or malformed response.");
+    return nullptr;
   }
   if (!isKeyPresent(executable_output, "version")) {
-    FinishRetrieveSubjectToken(
-        "", GRPC_ERROR_CREATE("The executable response must contain the "
-                              "`version` field."));
+    *error = GRPC_ERROR_CREATE(
+        "The executable response must contain the "
+        "`version` field.");
+    return nullptr;
   }
   absl::SimpleAtoi(getStringValue(executable_output, "version"),
-                   &executable_response_.version);
+                   &executable_response->version);
   auto executable_output_it = executable_output->object().find("success");
   if (!isKeyPresent(executable_output, "success")) {
-    FinishRetrieveSubjectToken(
-        "", GRPC_ERROR_CREATE("The executable response must contain the "
-                              "`success` field."));
+    *error = GRPC_ERROR_CREATE(
+        "The executable response must contain the "
+        "`success` field.");
+    return nullptr;
   }
-  executable_response_.success = executable_output_it->second.boolean();
-  if (executable_response_.success) {
+  executable_response->success = executable_output_it->second.boolean();
+  if (executable_response->success) {
     if (!isKeyPresent(executable_output, "token_type")) {
-      FinishRetrieveSubjectToken(
-          "", GRPC_ERROR_CREATE("The executable response must contain the "
-                                "`token_type` field."));
+      *error = GRPC_ERROR_CREATE(
+          "The executable response must contain the "
+          "`token_type` field.");
+      return nullptr;
     }
-    executable_response_.token_type =
-        getStringValue(executable_output, "token_type");
-    executable_response_.expiration_time = 0;
+    executable_response->token_type =
+        gpr_strdup(getStringValue(executable_output, "token_type").c_str());
+    executable_response->expiration_time = 0;
     if (output_file_path_ != "" &&
         !isKeyPresent(executable_output, "expiration_time")) {
-      FinishRetrieveSubjectToken(
-          "", GRPC_ERROR_CREATE("The executable response must contain the "
-                                "`expiration_time` field "
-                                "for successful responses when an output_file "
-                                "has been specified in "
-                                "the configuration."));
+      *error = GRPC_ERROR_CREATE(
+          "The executable response must contain the `expiration_time` field "
+          "for successful responses when an output_file has been specified in "
+          "the configuration.");
+      return nullptr;
     }
     if (isKeyPresent(executable_output, "expiration_time")) {
       absl::SimpleAtoi(getStringValue(executable_output, "expiration_time"),
-                       &executable_response_.expiration_time);
+                       &executable_response->expiration_time);
     }
-    if (strcmp(executable_response_.token_type.c_str(),
-               SAML_SUBJECT_TOKEN_TYPE) == 0)
+    if (strcmp(executable_response->token_type, SAML_SUBJECT_TOKEN_TYPE) == 0)
       executable_output_it = executable_output->object().find("saml_response");
     else
       executable_output_it = executable_output->object().find("id_token");
     if (executable_output_it == executable_output->object().end()) {
-      FinishRetrieveSubjectToken(
-          "", GRPC_ERROR_CREATE(
-                  "The executable response must contain a valid token."));
+      *error = GRPC_ERROR_CREATE(
+          "The executable response must contain a valid token.");
+      return nullptr;
     }
-    executable_response_.subject_token = executable_output_it->second.string();
+    executable_response->subject_token =
+        gpr_strdup(executable_output_it->second.string().c_str());
   } else {
     if (!isKeyPresent(executable_output, "code")) {
-      FinishRetrieveSubjectToken(
-          "", GRPC_ERROR_CREATE("The executable response must contain the "
-                                "`code` field when unsuccessful."));
+      *error = GRPC_ERROR_CREATE(
+          "The executable response must contain the "
+          "`code` field when unsuccessful.");
+      return nullptr;
     }
-    executable_response_.error_code = getStringValue(executable_output, "code");
+    executable_response->error_code =
+        gpr_strdup(getStringValue(executable_output, "code").c_str());
     if (!isKeyPresent(executable_output, "message")) {
-      FinishRetrieveSubjectToken(
-          "", GRPC_ERROR_CREATE("The executable response must contain the "
-                                "`message` field when unsuccessful."));
+      *error = GRPC_ERROR_CREATE(
+          "The executable response must contain the "
+          "`message` field when unsuccessful.");
+      return nullptr;
     }
-    executable_response_.error_message =
-        getStringValue(executable_output, "message");
+    executable_response->error_message =
+        gpr_strdup(getStringValue(executable_output, "message").c_str());
   }
+  return executable_response;
 }
 
 void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
     HTTPRequestContext* /*ctx*/, const Options& options,
     std::function<void(std::string, grpc_error_handle)> cb) {
   cb_ = cb;
+  grpc_error_handle error;
   char* allow_exec_env_value =
       getenv(GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES);
   if (allow_exec_env_value == nullptr ||
@@ -246,19 +256,26 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
   // expired.
   if (output_file_path_ != "") {
     SliceWrapper content_slice;
-    grpc_error_handle error =
-        grpc_load_file(output_file_path_.c_str(), 0, &content_slice.slice);
+    error = grpc_load_file(output_file_path_.c_str(), 0, &content_slice.slice);
     if (error.ok()) {
-      absl::string_view output_file_content =
-          StringViewFromSlice(content_slice.slice);
-      CreateExecutableResponse(std::string(output_file_content));
-      // If the cached output file has an executable response that was
-      // successful and un-expired, return the subject token.
-      if (executable_response_.success &&
-          !isExpired(executable_response_.expiration_time)) {
-        FinishRetrieveSubjectToken(executable_response_.subject_token,
-                                   absl::OkStatus());
-        return;
+      std::string output_file_content =
+          std::string(StringViewFromSlice(content_slice.slice));
+      // If the output_file is blank, call the executable
+      if (output_file_content != "") {
+        executable_response_ =
+            CreateExecutableResponse(std::string(output_file_content), &error);
+        if (executable_response_ == nullptr) {
+          FinishRetrieveSubjectToken("", error);
+          return;
+        }
+        // If the cached output file has an executable response
+        // that was successful and un-expired, return the subject token.
+        if (executable_response_->success &&
+            !isExpired(executable_response_->expiration_time)) {
+          FinishRetrieveSubjectToken(executable_response_->subject_token,
+                                     absl::OkStatus());
+          return;
+        }
       }
     }
   }
@@ -310,35 +327,49 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
     // response in the output file path.
     if (output_file_path_ != "") {
       SliceWrapper content_slice;
-      grpc_error_handle error =
+      error =
           grpc_load_file(output_file_path_.c_str(), 0, &content_slice.slice);
       if (error.ok()) {
         absl::string_view output_file_content =
             StringViewFromSlice(content_slice.slice);
-        CreateExecutableResponse(std::string(output_file_content));
+        executable_response_ =
+            CreateExecutableResponse(std::string(output_file_content), &error);
       }
-    } else
-      // Get the result of the executable from output stream and create an
+    } else {
+      // Get the result of the executable from stdout and create an
       // ExecutableResponse object from it.
-      CreateExecutableResponse(output_string);
-    if (!executable_response_.success) {
-      FinishRetrieveSubjectToken(
-          "",
-          GRPC_ERROR_CREATE(absl::StrFormat(
-              "Executable failed with error code: %s and error message: %s.",
-              executable_response_.error_code,
-              executable_response_.error_message)));
+      if (output_string != "") {
+        executable_response_ = CreateExecutableResponse(output_string, &error);
+      } else if (error_string != "") {
+        // Get the result of the executable from stderr and create an
+        // ExecutableResponse object from it.
+        executable_response_ = CreateExecutableResponse(error_string, &error);
+      }
+    }
+    if (executable_response_ == nullptr) {
+      FinishRetrieveSubjectToken("", error);
       return;
     }
-    if (isExpired(executable_response_.expiration_time)) {
+    if (!executable_response_->success) {
+      FinishRetrieveSubjectToken(
+          "", GRPC_ERROR_CREATE(
+                  absl::StrFormat("Executable failed with error code: %s "
+                                  "and error message: %s.",
+                                  executable_response_->error_code,
+                                  executable_response_->error_message)));
+      return;
+    }
+    if (isExpired(executable_response_->expiration_time)) {
       FinishRetrieveSubjectToken(
           "", GRPC_ERROR_CREATE("Executable response is expired."));
       return;
     }
-    FinishRetrieveSubjectToken(executable_response_.subject_token,
+    // Subject token is valid and can be returned.
+    FinishRetrieveSubjectToken(executable_response_->subject_token,
                                absl::OkStatus());
     return;
   } else {
+    // Process has not terminated within the specified timeout.
     gpr_subprocess_destroy(gpr_subprocess_);
     FinishRetrieveSubjectToken("", GRPC_ERROR_CREATE(absl::StrFormat(
                                        "The executable failed to finish within "
