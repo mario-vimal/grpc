@@ -182,7 +182,8 @@ PluggableAuthExternalAccountCredentials::CreateExecutableResponse(
     }
     executable_response->token_type =
         gpr_strdup(getStringValue(executable_output, "token_type").c_str());
-    executable_response->expiration_time = 0;
+    executable_response->expiration_time =
+        gpr_time_to_millis(gpr_inf_future(GPR_CLOCK_REALTIME));
     if (output_file_path_ != "" &&
         !isKeyPresent(executable_output, "expiration_time")) {
       *error = GRPC_ERROR_CREATE(
@@ -192,8 +193,14 @@ PluggableAuthExternalAccountCredentials::CreateExecutableResponse(
       return nullptr;
     }
     if (isKeyPresent(executable_output, "expiration_time")) {
-      absl::SimpleAtoi(getStringValue(executable_output, "expiration_time"),
-                       &executable_response->expiration_time);
+      if (!absl::SimpleAtoi(
+              getStringValue(executable_output, "expiration_time"),
+              &executable_response->expiration_time)) {
+        *error = GRPC_ERROR_CREATE(
+            "The executable response contains an invalid value for "
+            "'expiration_time'.");
+        return nullptr;
+      }
     }
     if (strcmp(executable_response->token_type, SAML_SUBJECT_TOKEN_TYPE) == 0)
       executable_output_it = executable_output->object().find("saml_response");
@@ -260,7 +267,8 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
     if (error.ok()) {
       std::string output_file_content =
           std::string(StringViewFromSlice(content_slice.slice));
-      // If the output_file is blank, call the executable
+      // If the output_file is not blank, try to get an ExecutableResponse from
+      // the output file.
       if (output_file_content != "") {
         executable_response_ =
             CreateExecutableResponse(std::string(output_file_content), &error);
