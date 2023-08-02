@@ -90,12 +90,13 @@ std::string get_impersonated_email(
 
 bool run_executable(gpr_subprocess* gpr_subprocess_, int argc, char** argv,
                     int envc, char** envp, std::string* output,
-                    std::string* error) {
+                    std::string* stderr_data, std::string* error) {
   gpr_subprocess_ =
       gpr_subprocess_create_with_envp(argc, const_cast<const char**>(argv),
                                       envc, const_cast<const char**>(envp));
   std::string input = "";
-  return gpr_subprocess_communicate(gpr_subprocess_, input, output, error);
+  return gpr_subprocess_communicate(gpr_subprocess_, input, output, stderr_data,
+                                    error);
 }
 
 namespace grpc_core {
@@ -315,12 +316,12 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
   }
   gpr_subprocess* gpr_subprocess_;
   std::packaged_task<bool(gpr_subprocess*, int, char**, int, char**,
-                          std::string*, std::string*)>
+                          std::string*, std::string*, std::string*)>
       run_executable_task(run_executable);
   std::future<bool> executable_output_future = run_executable_task.get_future();
-  std::string output_string, error_string;
+  std::string output_string, stderr_data, error_string;
   std::thread thr(std::move(run_executable_task), gpr_subprocess_, argc, argv,
-                  envc, envp, &output_string, &error_string);
+                  envc, envp, &output_string, &stderr_data, &error_string);
   if (executable_output_future.wait_for(std::chrono::seconds(
           executable_timeout_ms_ / 1000)) != std::future_status::timeout) {
     thr.join();
@@ -348,10 +349,10 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
       // ExecutableResponse object from it.
       if (output_string != "") {
         executable_response_ = CreateExecutableResponse(output_string, &error);
-      } else if (error_string != "") {
+      } else if (stderr_data != "") {
         // Get the result of the executable from stderr and create an
         // ExecutableResponse object from it.
-        executable_response_ = CreateExecutableResponse(error_string, &error);
+        executable_response_ = CreateExecutableResponse(stderr_data, &error);
       }
     }
     if (executable_response_ == nullptr) {
