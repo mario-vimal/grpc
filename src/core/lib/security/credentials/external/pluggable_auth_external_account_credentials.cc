@@ -200,7 +200,7 @@ PluggableAuthExternalAccountCredentials::CreateExecutableResponse(
               &executable_response->expiration_time)) {
         *error = GRPC_ERROR_CREATE(
             "The executable response contains an invalid value for "
-            "'expiration_time'.");
+            "`expiration_time`.");
         return nullptr;
       }
     }
