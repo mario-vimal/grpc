@@ -1647,8 +1647,6 @@
         'grpc_test_util',
       ],
       'sources': [
-        'src/core/lib/gpr/subprocess_posix.cc',
-        'src/core/lib/gpr/subprocess_windows.cc',
         'test/core/end2end/data/client_certs.cc',
         'test/core/end2end/data/server1_cert.cc',
         'test/core/end2end/data/server1_key.cc',

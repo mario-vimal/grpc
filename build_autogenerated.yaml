@@ -3184,7 +3184,6 @@ libs:
   language: c++
   public_headers: []
   headers:
-  - src/core/lib/gpr/subprocess.h
   - test/core/end2end/data/ssl_test_data.h
   - test/core/util/cmdline.h
   - test/core/util/evaluate_args_test_util.h
@@ -3204,8 +3203,6 @@ libs:
   - test/cpp/util/subprocess.h
   - test/cpp/util/test_credentials_provider.h
   src:
-  - src/core/lib/gpr/subprocess_posix.cc
-  - src/core/lib/gpr/subprocess_windows.cc
   - test/core/end2end/data/client_certs.cc
   - test/core/end2end/data/server1_cert.cc
   - test/core/end2end/data/server1_key.cc

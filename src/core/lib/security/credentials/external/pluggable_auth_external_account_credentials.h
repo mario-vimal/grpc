@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include "src/core/lib/gpr/subprocess.h"
 #include "src/core/lib/gprpp/ref_counted_ptr.h"
 #include "src/core/lib/iomgr/error.h"
 #include "src/core/lib/security/credentials/external/external_account_credentials.h"
@@ -66,6 +67,7 @@ class PluggableAuthExternalAccountCredentials final
   std::string output_file_path_ = "";
 
   ExecutableResponse* executable_response_;
+  gpr_subprocess* gpr_subprocess_;
 
   std::function<void(std::string, grpc_error_handle)> cb_ = nullptr;
 };

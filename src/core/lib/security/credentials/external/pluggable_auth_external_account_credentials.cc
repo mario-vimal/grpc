@@ -88,14 +88,14 @@ std::string get_impersonated_email(
   return std::string(impersonated_email);
 }
 
-bool run_executable(gpr_subprocess* gpr_subprocess_, int argc, char** argv,
+bool run_executable(gpr_subprocess** gpr_subprocess, int argc, char** argv,
                     int envc, char** envp, std::string* output,
                     std::string* stderr_data, std::string* error) {
-  gpr_subprocess_ =
+  *gpr_subprocess =
       gpr_subprocess_create_with_envp(argc, const_cast<const char**>(argv),
                                       envc, const_cast<const char**>(envp));
   std::string input = "";
-  return gpr_subprocess_communicate(gpr_subprocess_, input, output, stderr_data,
+  return gpr_subprocess_communicate(*gpr_subprocess, input, output, stderr_data,
                                     error);
 }
 
@@ -154,8 +154,9 @@ PluggableAuthExternalAccountCredentials::CreateExecutableResponse(
       (ExecutableResponse*)gpr_malloc(sizeof(ExecutableResponse));
   if (!executable_output.ok()) {
     *error = GRPC_ERROR_CREATE(
-        "The response from the executable contains an invalid "
-        "or malformed response.");
+        absl::StrFormat("The response from the executable contains an invalid "
+                        "or malformed response: %s",
+                        executable_output_string));
     return nullptr;
   }
   if (!isKeyPresent(executable_output, "version")) {
@@ -314,13 +315,12 @@ void PluggableAuthExternalAccountCredentials::RetrieveSubjectToken(
   for (int i = 0; i < argc; i++) {
     argv[i] = gpr_strdup(arg_vector[i].c_str());
   }
-  gpr_subprocess* gpr_subprocess_;
-  std::packaged_task<bool(gpr_subprocess*, int, char**, int, char**,
+  std::packaged_task<bool(gpr_subprocess**, int, char**, int, char**,
                           std::string*, std::string*, std::string*)>
       run_executable_task(run_executable);
   std::future<bool> executable_output_future = run_executable_task.get_future();
   std::string output_string, stderr_data, error_string;
-  std::thread thr(std::move(run_executable_task), gpr_subprocess_, argc, argv,
+  std::thread thr(std::move(run_executable_task), &gpr_subprocess_, argc, argv,
                   envc, envp, &output_string, &stderr_data, &error_string);
   if (executable_output_future.wait_for(std::chrono::seconds(
           executable_timeout_ms_ / 1000)) != std::future_status::timeout) {
